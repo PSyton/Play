@@ -196,6 +196,7 @@ static NSString * const SearchFieldToolbarItemIdentifier		= @"org.sbooth.Play.Li
 - (void) addRandomTracksFromLibraryToPlayQueue:(unsigned)count;
 
 - (BOOL) addStreamsFromExternalCueSheet:(NSString *)filename;
+- (BOOL) addStreamsFromInternalCueSheet:(NSString *)fileName content:(NSString *)aContent;
 
 - (void) updatePlayQueueHistory;
 
@@ -815,8 +816,8 @@ static NSString * const SearchFieldToolbarItemIdentifier		= @"org.sbooth.Play.Li
 	NSError *error = nil;
 	
 	// Parse external cue sheets
-	if([[filename pathExtension] isEqualToString:@"cue"])
-		return [self addStreamsFromExternalCueSheet:filename];
+//	if([[filename pathExtension] isEqualToString:@"cue"])
+//		return [self addStreamsFromExternalCueSheet:filename];
 	
 	// Read the properties to determine if the file contains an embedded cuesheet
 	AudioPropertiesReader *propertiesReader = [AudioPropertiesReader propertiesReaderForURL:[NSURL fileURLWithPath:filename] error:&error];
@@ -880,6 +881,11 @@ static NSString * const SearchFieldToolbarItemIdentifier		= @"org.sbooth.Play.Li
 		
 		NSMutableDictionary *values = [NSMutableDictionary dictionaryWithDictionary:[propertiesReader properties]];
 		[values addEntriesFromDictionary:[metadataReader metadata]];
+		
+		NSString* embeddedCue = [values valueForKey:PropertiesCueSheet];
+		if ( nil != embeddedCue ) {
+			return [self addStreamsFromInternalCueSheet:filename content:embeddedCue];
+		}
 		
 		// Insert the object in the database
 		stream = [AudioStream insertStreamForURL:[NSURL fileURLWithPath:filename] withInitialValues:values];
@@ -2337,6 +2343,37 @@ static NSString * const SearchFieldToolbarItemIdentifier		= @"org.sbooth.Play.Li
 	[self updatePlayButtonState];
 }
 
+- (BOOL) addStreamsFromInternalCueSheet:(NSString *)fileName content:(NSString *)aContent
+{
+	NSParameterAssert(nil != fileName);
+	NSParameterAssert(nil != aContent);
+	
+	NSError *error = nil;
+	CueSheetParser *cueSheetParser = [CueSheetParser cueSheetWithContent:[NSURL fileURLWithPath:fileName] content:aContent error:&error];
+	if(nil == cueSheetParser)
+		return NO;
+
+	// Iterate through each track in the cue sheet, adding it to the library if required
+	for(NSDictionary *cueSheetTrack in [cueSheetParser cueSheetTracks]) {
+		// If the stream already exists in the library, skip it
+		AudioStream *stream = [[[CollectionManager manager] streamManager] streamForURL:[NSURL fileURLWithPath:fileName] 
+																		  startingFrame:[cueSheetTrack valueForKey:StreamStartingFrameKey] 
+																			 frameCount:[cueSheetTrack valueForKey:StreamFrameCountKey]];
+		if(nil != stream)
+			continue;
+		
+		// Insert the object in the database
+		stream = [AudioStream insertStreamForURL:[NSURL fileURLWithPath:fileName] withInitialValues:cueSheetTrack];
+		
+		// Add the stream to the selected playlist
+		if(nil != stream && [_browserController selectedNodeIsPlaylist])
+			[[(PlaylistNode *)[_browserController selectedNode] playlist] addStream:stream];
+	}
+	
+	return YES;
+	
+}
+
 - (BOOL) addStreamsFromExternalCueSheet:(NSString *)filename
 {
 	NSParameterAssert(nil != filename);
@@ -3004,3 +3041,4 @@ static NSString * const SearchFieldToolbarItemIdentifier		= @"org.sbooth.Play.Li
 }
 
 @end
+

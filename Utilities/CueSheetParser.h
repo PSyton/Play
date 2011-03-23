@@ -24,11 +24,14 @@
 {
 	NSURL			*_URL;
 	NSArray			*_cueSheetTracks;
+	BOOL			_isInternal;
 }
 
 + (id) cueSheetWithURL:(NSURL *)URL error:(NSError **)error;
++ (id) cueSheetWithContent:(NSURL *)aFileName content:(NSString *)aContent error:(NSError **)aError;
 
 - (id) initWithURL:(NSURL *)URL error:(NSError **)error;
+- (id) initWithContent:(NSURL *)aFileName content:(NSString* )aContent error:(NSError **)aError;
 	
 - (NSArray *) cueSheetTracks;
 @end

@@ -112,6 +112,11 @@ getAPETag(CAPETag		*f,
 	if(nil != compilation)
 		[metadataDictionary setValue:[NSNumber numberWithBool:[compilation intValue]] forKey:MetadataCompilationKey];	
 	
+	NSString *cueSheet = getAPETag(f, "Cuesheet");
+	if (nil != cueSheet) {
+		[metadataDictionary setValue:cueSheet forKey:PropertiesCueSheet];
+	}
+	
 	// ISRC
 	[metadataDictionary setValue:getAPETag(f, "ISRC") forKey:MetadataISRCKey];
 	

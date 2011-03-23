@@ -73,6 +73,7 @@ NSString * const	PropertiesChannelsPerFrameKey			= @"channelsPerFrame";
 NSString * const	PropertiesSampleRateKey					= @"sampleRate";
 NSString * const	PropertiesTotalFramesKey				= @"totalFrames";
 NSString * const	PropertiesBitrateKey					= @"bitrate";
+NSString * const	PropertiesCueSheet						= @"cuesheet";
 
 @implementation AudioStream
 

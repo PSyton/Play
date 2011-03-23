@@ -93,7 +93,8 @@ scanMSF(NSScanner		*scanner,
 
 @interface CueSheetParser (Private)
 
-- (BOOL) parse:(NSError **)error;
+- (BOOL) parse:(NSError **)aError;
+- (BOOL) parse:(NSString* )aContext error:(NSError **)aError;
 
 @end
 
@@ -105,12 +106,35 @@ scanMSF(NSScanner		*scanner,
 	return [cueSheetParser autorelease];
 }
 
++ (id) cueSheetWithContent:(NSURL *)aFileName content:(NSString *)aContent error:(NSError **)aError
+{
+	CueSheetParser *cueSheetParser = [[CueSheetParser alloc] initWithContent:aFileName content:aContent error:aError];
+	return [cueSheetParser autorelease];
+}
+
+- (id) initWithContent:(NSURL *)aFileName content:(NSString* )aContent error:(NSError **)aError
+{
+	NSParameterAssert(nil != aFileName);
+	NSParameterAssert(nil != aContent);
+	
+	if ((self = [super init])) {
+		_URL = [aFileName retain];
+		_isInternal = YES;
+		if (NO == [self parse: aContent error:aError]) {
+			[self release];
+			return nil;
+		}
+	}
+	return self;
+}
+
 - (id) initWithURL:(NSURL *)URL error:(NSError **)error
 {
 	NSParameterAssert(nil != URL);
 
 	if((self = [super init])) {
 		_URL = [URL retain];
+		_isInternal = NO;
 		if(NO == [self parse:error]) {
 			[self release];
 			return nil;
@@ -140,17 +164,22 @@ scanMSF(NSScanner		*scanner,
 // Since cue sheets are simple, just use NSScanner in lieu of a full-blown lemon parser
 // This is a bare-bones implementation that ignores many commands we're not interested in
 // This is also an extremely lenient parser, ignoring most "rules" from http://digitalx.org/cuesheetsyntax.php
-- (BOOL) parse:(NSError **)error
+- (BOOL) parse:(NSError **)aError
 {
 	// Attempt to read the cue sheet as a string for parsing
-	NSString *fileContents = [NSString stringWithContentsOfURL:_URL encoding:NSUTF8StringEncoding error:error];
-	if(nil == fileContents)
+	NSString *fileContents = [NSString stringWithContentsOfURL:_URL encoding:NSUTF8StringEncoding error:aError];
+	return [self parse:fileContents error:aError];
+}
+
+- (BOOL) parse:(NSString *)aContext error:(NSError **)aError
+{
+	if(nil == aContext)
 		return NO;		
 	
 	NSMutableDictionary		*cueSheet			= [NSMutableDictionary dictionary];
 	NSMutableArray			*cueSheetTracks		= [NSMutableArray array];
 	NSMutableDictionary		*currentTrack		= nil;
-
+	
 	// The current file
 	NSURL					*fileURL			= nil;
 	AudioPropertiesReader	*propertiesReader	= nil;
@@ -162,9 +191,9 @@ scanMSF(NSScanner		*scanner,
 	NSCharacterSet	*newlineCharacterSet		= [NSCharacterSet characterSetWithCharactersInString:newlineCharacters];
 	
 	// Parse the cue sheet one line at a time
-	NSScanner	*fileScanner	= [NSScanner scannerWithString:fileContents];
+	NSScanner	*fileScanner	= [NSScanner scannerWithString:aContext];
 	NSString	*line			= nil;
-
+	
 	while(NO == [fileScanner isAtEnd] && [fileScanner scanUpToCharactersFromSet:newlineCharacterSet intoString:&line]) {
 		// Parse the line
 		NSScanner	*lineScanner	= [NSScanner scannerWithString:line];
@@ -183,39 +212,53 @@ scanMSF(NSScanner		*scanner,
 		else if([command isEqualToString:@"CDTEXTFILE"])
 			;
 		else if([command isEqualToString:@"FILE"]) {
-			NSString *filename = nil;
-			
-			if(scanPossiblyQuotedString(lineScanner, &filename)) {
-				// If the file doesn't exist as an absolute path attempt to resolve it
-				if(NO == [[NSFileManager defaultManager] fileExistsAtPath:filename]) {
-					NSString	*cueSheetPath	= [[_URL path] stringByDeletingLastPathComponent];
-					NSString	*filenamePath	= [cueSheetPath stringByAppendingPathComponent:filename];
+			if ( NO == _isInternal ) {
 
-					if(NO == [[NSFileManager defaultManager] fileExistsAtPath:filenamePath])
+				NSString *filename = nil;
+				if(scanPossiblyQuotedString(lineScanner, &filename)) {
+					// If the file doesn't exist as an absolute path attempt to resolve it
+					if(NO == [[NSFileManager defaultManager] fileExistsAtPath:filename]) {
+						NSString	*cueSheetPath	= [[_URL path] stringByDeletingLastPathComponent];
+						NSString	*filenamePath	= [cueSheetPath stringByAppendingPathComponent:filename];
+						
+						if(NO == [[NSFileManager defaultManager] fileExistsAtPath:filenamePath])
+							return NO;
+						else
+							filename = filenamePath;
+					}
+					
+					fileURL = [NSURL fileURLWithPath:filename];
+					
+					// Read the properties for the file
+					propertiesReader = [AudioPropertiesReader propertiesReaderForURL:fileURL error:aError];
+					if(nil == propertiesReader)
 						return NO;
-					else
-						filename = filenamePath;
+					
+					if(NO == [propertiesReader readProperties:aError])
+						return NO;
+					
+					metadataReader = [AudioMetadataReader metadataReaderForURL:fileURL error:aError];
+					if(nil == metadataReader)
+						return NO;
+					
+					if(NO == [metadataReader readMetadata:aError])
+						return NO;
 				}
-				
-				fileURL = [NSURL fileURLWithPath:filename];
-				
+				else
+					return NO;
+			}
+			else {
+				fileURL = _URL;
+
 				// Read the properties for the file
-				propertiesReader = [AudioPropertiesReader propertiesReaderForURL:fileURL error:error];
+				propertiesReader = [AudioPropertiesReader propertiesReaderForURL:fileURL error:aError];
 				if(nil == propertiesReader)
 					return NO;
 				
-				if(NO == [propertiesReader readProperties:error])
-					return NO;
-				
-				metadataReader = [AudioMetadataReader metadataReaderForURL:fileURL error:error];
-				if(nil == metadataReader)
-					return NO;
-				
-				if(NO == [metadataReader readMetadata:error])
+				if(NO == [propertiesReader readProperties:aError])
 					return NO;
 			}
-			else
-				return NO;
+
 			
 			// Ignore anything after the filename; we don't care what type it is or the format
 		}
@@ -250,7 +293,7 @@ scanMSF(NSScanner		*scanner,
 		else if([command isEqualToString:@"ISRC"]) {
 			if(nil == currentTrack)
 				continue;
-
+			
 			NSString *isrc = nil;
 			if([lineScanner scanUpToCharactersFromSet:[NSCharacterSet whitespaceCharacterSet] intoString:&isrc])
 				[currentTrack setValue:isrc forKey:MetadataISRCKey];
@@ -298,13 +341,13 @@ scanMSF(NSScanner		*scanner,
 			int trackNumber = 0;
 			if(NO == [lineScanner scanInt:&trackNumber])
 				continue;
-
+			
 			NSString *trackType = nil;			
 			if(NO == scanPossiblyQuotedString(lineScanner, &trackType) || NO == [trackType isEqualToString:@"AUDIO"])
 				continue;
-				
+			
 			currentTrack = [NSMutableDictionary dictionaryWithObject:fileURL forKey:StreamURLKey];
-
+			
 			[currentTrack setValue:[NSNumber numberWithInt:trackNumber] forKey:MetadataTrackNumberKey];
 			[currentTrack addEntriesFromDictionary:[propertiesReader properties]];
 			[currentTrack addEntriesFromDictionary:[metadataReader metadata]];
@@ -322,13 +365,13 @@ scanMSF(NSScanner		*scanner,
 	unsigned i;
 	for(i = 0; i < [cueSheetTracks count]; ++i) {
 		NSMutableDictionary *thisTrack = [cueSheetTracks objectAtIndex:i];
-
+		
 		[thisTrack addEntriesFromDictionary:cueSheet];
 		
 		NSMutableDictionary *previousTrack = nil;
 		if(0 != i)
 			previousTrack = [cueSheetTracks objectAtIndex:(i - 1)];
-
+		
 		// Fill in frame counts
 		if(nil != previousTrack && [[previousTrack valueForKey:StreamURLKey] isEqual:[thisTrack valueForKey:StreamURLKey]]) {
 			unsigned frameCount = ([[thisTrack valueForKey:StreamStartingFrameKey] longLongValue] - 1) - [[previousTrack valueForKey:StreamStartingFrameKey] longLongValue];
@@ -348,5 +391,6 @@ scanMSF(NSScanner		*scanner,
 	
 	return YES;
 }
+
 
 @end

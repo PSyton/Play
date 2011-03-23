@@ -431,7 +431,14 @@
 			};
 			buildConfigurationList = D50F206F08A01A630073A261 /* Build configuration list for PBXProject "RBSplitView" */;
 			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = 0259C574FE90428111CA0C5A /* RBSplitView */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -1071,9 +1078,11 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = D508879A0AA1D2A100F4ECB3 /* RB.xcconfig */;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				PRODUCT_NAME = RBSplitView;
+				SDKROOT = macosx10.5;
 			};
 			name = Debug;
 		};

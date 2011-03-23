@@ -133,6 +133,8 @@
 						[metadataDictionary setValue:value forKey:MetadataISRCKey];
 					else if(NSOrderedSame == [key caseInsensitiveCompare:@"MCN"])
 						[metadataDictionary setValue:value forKey:MetadataMCNKey];
+					else if(NSOrderedSame == [key caseInsensitiveCompare:@"CUESHEET"])
+						[metadataDictionary setValue:value forKey:PropertiesCueSheet];
 					else if(NSOrderedSame == [key caseInsensitiveCompare:@"BPM"])
 						[metadataDictionary setValue:[NSNumber numberWithUnsignedInt:(UInt32)[value intValue]] forKey:MetadataBPMKey];
 					else if(NSOrderedSame == [key caseInsensitiveCompare:@"REPLAYGAIN_REFERENCE_LOUDNESS"]) {

@@ -70,6 +70,7 @@ extern NSString * const		PropertiesChannelsPerFrameKey;
 extern NSString * const		PropertiesSampleRateKey;
 extern NSString * const		PropertiesTotalFramesKey;
 extern NSString * const		PropertiesBitrateKey;
+extern NSString * const		PropertiesCueSheet;
 
 @interface AudioStream : DatabaseObject
 {
